@@ -1,2 +1,2 @@
 install:
-	install -D connman_dmenu $(DESTDIR)/usr/bin/connman_dmenu
+	install -Dm755 -t $(DESTDIR)/usr/bin connman_dmenu
