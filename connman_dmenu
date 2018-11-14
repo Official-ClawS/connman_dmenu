@@ -4,9 +4,11 @@ readonly STORAGE_PATH=/var/lib/connman
 readonly SCAN_RESULT=$(mktemp) || exit
 trap 'rm -f $SCAN_RESULT' EXIT
 
+[[ "$1" == "scan" ]] && scan=1 || scan=0
+
 get_services() {
     connmanctl enable wifi &>/dev/null
-    connmanctl scan wifi &>/dev/null
+    (( scan )) && connmanctl scan wifi &>/dev/null
     connmanctl services | cut -c 5- | rev | sed -r 's/([^\s+])\s+(.*)/\1\t\2/' | rev >$SCAN_RESULT
 }
 
