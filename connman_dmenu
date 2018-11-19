@@ -60,7 +60,7 @@ if is_connected "$id"; then
     exit 0
 fi
 
-connman_msg="$(timeout 5 connmanctl connect "$id" 2>&1 | head -n 1)"
+connman_msg="$(timeout 10 connmanctl connect "$id" 2>&1 | head -n 1)"
 if [[ "$connman_msg" != Connected* ]]; then
     error_msg='Timeout connecting to network'
     [[ "$connman_msg" ]] && error_msg="$(cut -d ' ' -f 3- <<<"$connman_msg")"
