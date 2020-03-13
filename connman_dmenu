@@ -1,17 +1,18 @@
 #!/bin/bash
 
-readonly STORAGE_PATH=/var/lib/connman
 readonly SCAN_RESULT=$(mktemp) || exit
+readonly STORAGE_PATH=/var/lib/connman
 trap 'rm -f $SCAN_RESULT' EXIT
 
-[[ "$1" == "scan" ]] && scan=1 || scan=0
-
-get_services() {
+get_networks()(
     connmanctl enable wifi &>/dev/null
-    (( scan )) && timeout 5 connmanctl scan wifi &>/dev/null
-    connmanctl services | cut -c 5- | rev | sed -r 's/([^\s+])\s+(.*)/\1\t\2/' | rev >$SCAN_RESULT
-}
-
+    (( scan )) && timeout 10 connmanctl scan wifi &>/dev/null
+    connmanctl services | cut -c 5- | rev | sed -r 's/([^\s+])\s+(.*)/\1\t\2/' | rev > $SCAN_RESULT
+)
+refresh_networks()(
+    connmanctl scan wifi &>/dev/null
+    connmanctl services | cut -c 5- | rev | sed -r 's/([^\s+])\s+(.*)/\1\t\2/' | rev > $SCAN_RESULT
+)
 index_to_name() {
     awk -v line="$1" 'NR == line { print $1 }' $SCAN_RESULT
 }
@@ -29,28 +30,32 @@ is_connected() {
   [[ ! "$state" =~ ^(idle|failure)$ ]]
 }
 
-create_dmenu() {
-    local order=1
-    local name
-    local id
-    local security
-    local disconnect
-    while IFS=$'\t' read -r name id; do
-        security=''
-        disconnect=''
-        is_connected "$id" && disconnect='(disconnect)'
-        case "$id" in
-            wifi_*) security="$(id_to_security "$id")" ;;
-            vpn_*) security=vpn ;;
-        esac
-        printf '%2s  %-40s%9s %s\n' "$order" "$name" "$security" "$disconnect"
-        (( order++ ))
-    done <$SCAN_RESULT
+create_menu() {
+ local order=1
+ local name
+ local id
+ local security
+ local disconnect
+ while IFS=$'\t' read -r name id; do
+     security=''
+     disconnect=''
+     is_connected "$id" && disconnect='(disconnect)'
+     case "$id" in
+         wifi_*) security="$(id_to_security "$id")" ;;
+         vpn_*) security=vpn ;;
+     esac
+     printf '%2s  %-40s%9s %s\n' "$order" "$name" "$security" "$disconnect"
+     (( order++ ))
+ done <$SCAN_RESULT
+ printf "Refresh Networks"
 }
 
-get_services
-index="$(create_dmenu | dmenu -l 10 -i -p 'Select network' | sed 's/^ *//g' | cut -d ' ' -f 1)"
-
+menu()(
+index="$(create_menu | dmenu -l 10 -i -p 'Select Network' | sed 's/^ *//g' | cut -d ' ' -f 1)"
+if [[ "$index" == Refresh ]]; then
+  refresh_networks
+  menu
+fi
 name="$(index_to_name "$index")"
 id="$(index_to_service "$index")"
 [ -z "$id" ] && exit 1
@@ -66,3 +71,6 @@ if [[ "$connman_msg" != Connected* ]]; then
     [[ "$connman_msg" ]] && error_msg="$(cut -d ' ' -f 3- <<<"$connman_msg")"
     notify-send -u critical "Unable to connect to \"$name\"" "$error_msg"
 fi
+)
+get_networks
+menu
